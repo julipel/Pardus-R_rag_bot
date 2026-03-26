@@ -42,7 +42,7 @@
 ## Подготовка окружения (Windows PowerShell)
 
 ```powershell
-cd "C:\Users\Алекс\Documents\дз\фриланс\RAG-ассистент с ChromaDB и кешированием\5-7-new_version"
+cd "ваша директория"
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt

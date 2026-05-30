@@ -282,6 +282,7 @@ Monitor usage in the [OpenAI usage dashboard](https://platform.openai.com/usage)
 
 ## Related documentation
 
+- [PORTFOLIO.md](./PORTFOLIO.md) — portfolio case study with screenshots
 - [ARCHITECTURE.md](./ARCHITECTURE.md) — components and data flow
 - [ROADMAP.md](./ROADMAP.md) — planned deployment improvements (Dockerfile, FastAPI, env wiring)
 - [README.md](./README.md) — quick start and feature overview

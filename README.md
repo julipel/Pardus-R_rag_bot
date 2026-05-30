@@ -21,6 +21,7 @@
 
 ## Документация
 
+- [PORTFOLIO.md](./PORTFOLIO.md) — portfolio case study (бизнес, функции, скриншоты)
 - [ARCHITECTURE.md](./ARCHITECTURE.md) — архитектура, потоки данных и модули
 - [DEPLOYMENT.md](./DEPLOYMENT.md) — развёртывание, systemd, Docker, эксплуатация
 - [ROADMAP.md](./ROADMAP.md) — план развития проекта

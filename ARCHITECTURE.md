@@ -219,4 +219,4 @@ Reasonable evolution paths (see [ROADMAP.md](./ROADMAP.md)) without rewriting th
 - **Config**: `python-dotenv`
 - **Persistence**: local filesystem + SQLite
 
-For install and run instructions, see [DEPLOYMENT.md](./DEPLOYMENT.md). For planned improvements, see [ROADMAP.md](./ROADMAP.md).
+For a portfolio-oriented overview, see [PORTFOLIO.md](./PORTFOLIO.md). For install and run instructions, see [DEPLOYMENT.md](./DEPLOYMENT.md). For planned improvements, see [ROADMAP.md](./ROADMAP.md).

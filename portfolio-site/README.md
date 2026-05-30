@@ -38,10 +38,21 @@ Set `NEXT_PUBLIC_SITE_URL` to your deployed URL for correct sitemap and Open Gra
 ```
 src/
   app/           # App Router pages, sitemap, robots
-  components/    # UI and sections
-  data/          # projects, analysis, profile
+  components/    # UI, sections, ArchitectureDiagram
+  data/          # projects, analysis, profile, expertise, process
   lib/           # SEO helpers
 ```
+
+## Homepage sections
+
+1. **Hero** — positioning, stats, CTA
+2. **Expertise** — focus areas + tech matrix
+3. **Analysis** — GitHub maturity ranking
+4. **Projects** — filterable grid (category + maturity)
+5. **Commercial** — 5 B2B case studies
+6. **Evolution** — PEr07 → RAG--ChromaDB- story
+7. **Process** — Discovery → MVP → Deploy → Metrics
+8. **Contact** — GitHub, email, Telegram
 
 ## Documentation
 

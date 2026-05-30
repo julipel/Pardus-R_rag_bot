@@ -5,9 +5,10 @@ import { useEffect, useState } from "react";
 import { profile } from "@/data/profile";
 
 const nav = [
-  { href: "#analysis", label: "Анализ" },
+  { href: "#expertise", label: "Экспертиза" },
   { href: "#projects", label: "Проекты" },
   { href: "#commercial", label: "Кейсы" },
+  { href: "#process", label: "Процесс" },
   { href: "#contact", label: "Контакты" },
 ];
 

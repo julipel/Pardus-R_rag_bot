@@ -17,6 +17,16 @@ export function ContactSection() {
             <Button href={profile.github} external>
               GitHub @{profile.handle}
             </Button>
+            {profile.email && (
+              <Button href={`mailto:${profile.email}`} variant="secondary" external>
+                Email
+              </Button>
+            )}
+            {profile.telegram && (
+              <Button href={profile.telegram} external variant="secondary">
+                Telegram
+              </Button>
+            )}
             <Button href="#projects" variant="secondary">
               Все проекты
             </Button>

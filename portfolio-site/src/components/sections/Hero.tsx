@@ -38,8 +38,11 @@ export function Hero() {
 
           <div className="mt-10 flex flex-wrap gap-4">
             <Button href="#projects">Смотреть проекты</Button>
-            <Button href="#analysis" variant="secondary">
-              Анализ GitHub
+            <Button href="#expertise" variant="secondary">
+              Экспертиза
+            </Button>
+            <Button href="#commercial" variant="secondary">
+              B2B-кейсы
             </Button>
             <Button href={profile.github} variant="secondary" external>
               GitHub

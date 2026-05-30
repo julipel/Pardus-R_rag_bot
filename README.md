@@ -19,6 +19,12 @@
 - Экспорт логов в CSV.
 - Telegram-интерфейс для пользователей.
 
+## Документация
+
+- [ARCHITECTURE.md](./ARCHITECTURE.md) — архитектура, потоки данных и модули
+- [DEPLOYMENT.md](./DEPLOYMENT.md) — развёртывание, systemd, Docker, эксплуатация
+- [ROADMAP.md](./ROADMAP.md) — план развития проекта
+
 ## Стек
 
 - Python 3.11+

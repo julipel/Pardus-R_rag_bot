@@ -11,4 +11,3 @@ python-dotenv>=1.0.0
 
 # Telegram Bot API для работы с Telegram ботом
 python-telegram-bot>=20.0
-

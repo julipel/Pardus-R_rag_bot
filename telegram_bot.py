@@ -8,17 +8,26 @@
 import os
 import time
 from typing import Optional
+
 from telegram import Update
 from telegram.ext import (
     Application,
     CommandHandler,
     MessageHandler,
     filters,
-    ContextTypes
+    ContextTypes,
 )
+
+from config import Settings
+from embeddings import EmbeddingStore, reindex_documents
 from rag import RAGAssistant
 from cache import ResponseCache
 from db_logger import DatabaseLogger
+
+
+async def _delete_webhook_on_start(application: Application) -> None:
+    """Снимает webhook (например, после n8n), чтобы работал long polling."""
+    await application.bot.delete_webhook(drop_pending_updates=True)
 
 
 class TelegramRAGBot:
@@ -34,34 +43,43 @@ class TelegramRAGBot:
         token: str,
         rag_assistant: RAGAssistant,
         cache: ResponseCache,
-        logger: DatabaseLogger
+        logger: DatabaseLogger,
+        embedding_store: EmbeddingStore,
+        settings: Settings,
     ):
-        """
-        Инициализация Telegram бота.
-        
-        Args:
-            token: Токен Telegram бота от @BotFather
-            rag_assistant: Экземпляр RAG-ассистента
-            cache: Экземпляр кеша ответов
-            logger: Экземпляр логгера базы данных
-        """
         self.rag_assistant = rag_assistant
         self.cache = cache
         self.logger = logger
+        self.embedding_store = embedding_store
+        self.settings = settings
+        self.admin_ids = settings.telegram_admin_ids
         
-        # Создаем приложение Telegram
-        self.application = Application.builder().token(token).build()
+        self.application = (
+            Application.builder()
+            .token(token)
+            .post_init(_delete_webhook_on_start)
+            .build()
+        )
         
-        # Регистрируем обработчики команд
         self.application.add_handler(CommandHandler("start", self.start_command))
         self.application.add_handler(CommandHandler("help", self.help_command))
         self.application.add_handler(CommandHandler("stats", self.stats_command))
         self.application.add_handler(CommandHandler("logs", self.logs_command))
+        self.application.add_handler(CommandHandler("reindex", self.reindex_command))
         
-        # Регистрируем обработчик текстовых сообщений
         self.application.add_handler(
             MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_message)
         )
+    
+    def _is_admin(self, user_id: str) -> bool:
+        return user_id in self.admin_ids
+    
+    async def _require_admin(self, update: Update) -> bool:
+        user_id = str(update.effective_user.id)
+        if self._is_admin(user_id):
+            return True
+        await update.message.reply_text("⛔ Команда доступна только администраторам.")
+        return False
     
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обработчик команды /start"""
@@ -103,22 +121,23 @@ class TelegramRAGBot:
         await update.message.reply_text(help_text.strip())
     
     async def stats_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Обработчик команды /stats"""
+        """Обработчик команды /stats (только для администраторов)"""
+        if not await self._require_admin(update):
+            return
+        
         try:
-            # Получаем статистику системы
             doc_count = self.rag_assistant.embedding_store.collection.count()
             cache_size = self.cache.size()
             model = self.rag_assistant.model
-            
-            # Получаем статистику из логов
             log_stats = self.logger.get_stats()
             
             stats_message = f"""
 📊 СТАТИСТИКА СИСТЕМЫ:
 
 📚 База знаний:
-  • Документов в ChromaDB: {doc_count}
+  • Чанков в ChromaDB: {doc_count}
   • Модель LLM: {model}
+  • Модель эмбеддингов: {self.settings.embedding_model}
 
 💾 Кеш:
   • Записей в кеше: {cache_size}
@@ -136,37 +155,57 @@ class TelegramRAGBot:
             await update.message.reply_text(f"❌ Ошибка при получении статистики: {str(e)}")
     
     async def logs_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Обработчик команды /logs - экспорт логов в CSV"""
+        """Обработчик команды /logs — экспорт всех логов (только для администраторов)"""
+        if not await self._require_admin(update):
+            return
+        
         try:
-            user_id = str(update.effective_user.id)
-            
-            # Экспортируем логи текущего пользователя
-            csv_content = self.logger.export_to_csv(user_id=user_id)
+            csv_content = self.logger.export_to_csv()
             
             if not csv_content:
-                await update.message.reply_text(
-                    "📝 Логов для вашего пользователя не найдено."
-                )
+                await update.message.reply_text("📝 Логов не найдено.")
                 return
             
-            # Сохраняем во временный файл
-            filename = f"logs_{user_id}_{int(time.time())}.csv"
+            filename = f"logs_all_{int(time.time())}.csv"
             with open(filename, 'w', encoding='utf-8') as f:
                 f.write(csv_content)
             
-            # Отправляем файл пользователю
             with open(filename, 'rb') as f:
                 await update.message.reply_document(
                     document=f,
                     filename=filename,
-                    caption="📊 Ваши логи взаимодействий с ботом"
+                    caption="📊 Экспорт всех логов системы",
                 )
             
-            # Удаляем временный файл
             os.remove(filename)
             
         except Exception as e:
             await update.message.reply_text(f"❌ Ошибка при экспорте логов: {str(e)}")
+    
+    async def reindex_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обработчик команды /reindex — переиндексация базы знаний (только для администраторов)"""
+        if not await self._require_admin(update):
+            return
+        
+        await update.message.reply_text("🔄 Начинаю переиндексацию базы знаний...")
+        
+        try:
+            doc_count = reindex_documents(
+                embedding_store=self.embedding_store,
+                docs_folder=self.settings.docs_folder,
+                clear_cache=self.cache,
+            )
+            chunk_count = self.embedding_store.collection.count()
+            await update.message.reply_text(
+                f"✅ Переиндексация завершена.\n"
+                f"Документов: {doc_count}\n"
+                f"Чанков в ChromaDB: {chunk_count}\n"
+                f"Кеш ответов очищен."
+            )
+        except ValueError as e:
+            await update.message.reply_text(f"❌ {e}")
+        except Exception as e:
+            await update.message.reply_text(f"❌ Ошибка переиндексации: {str(e)}")
     
     async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обработчик текстовых сообщений от пользователей"""
@@ -175,33 +214,26 @@ class TelegramRAGBot:
         user_id = str(user.id)
         username = user.username or user.first_name or "Unknown"
         
-        # Показываем, что бот печатает
         await update.message.chat.send_action(action="typing")
         
         start_time = time.time()
         
         try:
-            # Проверяем кеш
-            cached_answer = self.cache.get(user_message)
+            cached_answer = self.cache.get(user_message, verbose=False)
             from_cache = cached_answer is not None
             
             if cached_answer:
                 answer = cached_answer
             else:
-                # Выполняем RAG запрос
                 answer, _ = self.rag_assistant.generate_response(
                     query=user_message,
-                    top_k=3,
-                    verbose=False
+                    top_k=self.settings.top_k,
+                    verbose=False,
                 )
-                
-                # Сохраняем в кеш
-                self.cache.set(user_message, answer)
+                self.cache.set(user_message, answer, verbose=False)
             
-            # Вычисляем время ответа
             response_time_ms = int((time.time() - start_time) * 1000)
             
-            # Логируем взаимодействие
             self.logger.log_interaction(
                 query=user_message,
                 response=answer,
@@ -209,24 +241,17 @@ class TelegramRAGBot:
                 user_id=user_id,
                 username=username,
                 from_cache=from_cache,
-                response_time_ms=response_time_ms
+                response_time_ms=response_time_ms,
             )
             
-            # Отправляем ответ пользователю
-            # Разбиваем длинные ответы на части (Telegram имеет лимит 4096 символов)
             max_length = 4000
             if len(answer) <= max_length:
                 await update.message.reply_text(answer)
             else:
-                # Отправляем частями
-                parts = [answer[i:i+max_length] for i in range(0, len(answer), max_length)]
-                for i, part in enumerate(parts):
-                    if i == 0:
-                        await update.message.reply_text(part)
-                    else:
-                        await update.message.reply_text(part)
+                parts = [answer[i:i + max_length] for i in range(0, len(answer), max_length)]
+                for part in parts:
+                    await update.message.reply_text(part)
             
-            # Добавляем индикатор, если ответ из кеша
             if from_cache:
                 await update.message.reply_text("💾 (ответ из кеша)")
         
@@ -234,7 +259,6 @@ class TelegramRAGBot:
             error_message = f"❌ Произошла ошибка при обработке запроса: {str(e)}"
             await update.message.reply_text(error_message)
             
-            # Логируем ошибку
             self.logger.log_interaction(
                 query=user_message,
                 response=error_message,
@@ -242,12 +266,13 @@ class TelegramRAGBot:
                 user_id=user_id,
                 username=username,
                 from_cache=False,
-                response_time_ms=int((time.time() - start_time) * 1000)
+                response_time_ms=int((time.time() - start_time) * 1000),
             )
     
     def run(self):
         """Запускает бота"""
+        if not self.admin_ids:
+            print("⚠️  TELEGRAM_ADMIN_IDS не задан — админ-команды (/stats, /logs, /reindex) недоступны.")
         print("🤖 Запуск Telegram бота...")
         print("Бот готов к работе! Нажмите Ctrl+C для остановки.")
-        self.application.run_polling()
-
+        self.application.run_polling(drop_pending_updates=True)

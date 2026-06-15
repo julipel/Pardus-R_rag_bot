@@ -51,7 +51,7 @@ class ResponseCache:
         # Создаем SHA-256 хеш
         return hashlib.sha256(normalized_query.encode('utf-8')).hexdigest()
     
-    def get(self, query: str) -> Optional[str]:
+    def get(self, query: str, verbose: bool = True) -> Optional[str]:
         """
         Получает ответ из кеша, если он есть.
         
@@ -64,13 +64,15 @@ class ResponseCache:
         cache_key = self._get_cache_key(query)
         
         if cache_key in self.cache:
-            print(f"✓ Найден ответ в кеше для запроса: '{query[:50]}...'")
+            if verbose:
+                print(f"✓ Найден ответ в кеше для запроса: '{query[:50]}...'")
             return self.cache[cache_key]
         
-        print(f"✗ Ответ не найден в кеше, выполняем RAG поиск...")
+        if verbose:
+            print("✗ Ответ не найден в кеше, выполняем RAG поиск...")
         return None
     
-    def set(self, query: str, response: str) -> None:
+    def set(self, query: str, response: str, verbose: bool = True) -> None:
         """
         Сохраняет ответ в кеш.
         
@@ -84,7 +86,8 @@ class ResponseCache:
         # Автоматически сохраняем кеш на диск после каждого добавления
         self._save_cache()
         
-        print(f"✓ Ответ сохранен в кеше")
+        if verbose:
+            print("✓ Ответ сохранен в кеше")
     
     def _save_cache(self) -> None:
         """

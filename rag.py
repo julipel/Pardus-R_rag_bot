@@ -10,6 +10,25 @@ from openai import OpenAI
 import os
 
 
+SYSTEM_PROMPT = """Ты — консультант по портативному рентгеновскому аппарату «Пардус-Р».
+
+Твоя задача — отвечать на вопросы врачей, закупщиков, инженеров и операторов
+на основе официальной документации: технических характеристик, руководства по эксплуатации,
+паспорта, регистрационных данных, рекомендаций по радиационной безопасности и сценариев применения.
+
+Правила:
+- Отвечай только на основе предоставленного контекста из базы знаний
+- Если информации недостаточно — честно скажи об этом, не выдумывай
+- Отвечай на русском языке, чётко и по делу
+- При вопросах о безопасности и дозовой нагрузке будь особенно точен
+- Не давай клинических диагнозов и не заменяй консультацию врача-рентгенолога
+- Используй корректные медицинские и технические термины
+- В конце каждого ответа обязательно добавь блок «Источники» со списком документов,
+  на которых основан ответ. Указывай путь к файлу из контекста (поле «Источник»), например:
+  docs/01_Технические_параметры_Пардус-Р.md
+- Перечисляй только те документы, из которых ты реально использовал информацию"""
+
+
 class RAGAssistant:
     """
     Класс RAG-ассистента, который использует векторный поиск и LLM для ответов.
@@ -27,7 +46,8 @@ class RAGAssistant:
         embedding_store,
         api_key: Optional[str] = None,
         model: str = "gpt-3.5-turbo",
-        temperature: float = 0.7
+        temperature: float = 0.7,
+        max_tokens: int = 500,
     ):
         """
         Инициализация RAG-ассистента.
@@ -37,10 +57,12 @@ class RAGAssistant:
             api_key: API ключ OpenAI (если None, берется из переменной окружения)
             model: Название модели OpenAI для генерации ответов
             temperature: Параметр "креативности" модели (0.0 - детерминированный, 1.0 - креативный)
+            max_tokens: Максимальная длина ответа LLM
         """
         self.embedding_store = embedding_store
         self.model = model
         self.temperature = temperature
+        self.max_tokens = max_tokens
         
         # Инициализируем клиент OpenAI
         # API ключ берется из параметра или переменной окружения OPENAI_API_KEY
@@ -65,10 +87,21 @@ class RAGAssistant:
         
         for i, (chunk_text, source, distance) in enumerate(search_results, 1):
             context_parts.append(
-                f"[Документ {i} - {source}]\n{chunk_text}\n"
+                f"[Фрагмент {i} | Источник: {source}]\n{chunk_text}\n"
             )
         
         return "\n".join(context_parts)
+    
+    def _build_sources_footer(self, search_results: List[Tuple[str, str, float]]) -> str:
+        """Формирует блок со ссылками на документы, использованные при поиске."""
+        seen = []
+        for _, source, _ in search_results:
+            if source not in seen:
+                seen.append(source)
+        if not seen:
+            return ""
+        lines = "\n".join(f"• {source}" for source in seen)
+        return f"\n\n📎 Источники:\n{lines}"
     
     def _create_prompt(self, query: str, context: str) -> str:
         """
@@ -81,13 +114,15 @@ class RAGAssistant:
         Returns:
             Сформированный промпт
         """
-        prompt = f"""Ты - полезный AI-ассистент. Используй следующую информацию из базы знаний, чтобы ответить на вопрос пользователя.
+        prompt = f"""Используй контекст из базы знаний по аппарату «Пардус-Р», чтобы ответить на вопрос.
 
-ВАЖНО: 
-- Отвечай на основе предоставленного контекста
-- Если в контексте нет информации для ответа, честно скажи об этом
-- Отвечай на русском языке
-- Будь конкретным и информативным
+В каждом фрагменте контекста указан путь к исходному документу (поле «Источник»).
+В конце ответа добавь блок:
+
+📎 Источники:
+• путь/к/документу.md
+
+Перечисли только документы, информация из которых реально использована в ответе.
 
 === КОНТЕКСТ ИЗ БАЗЫ ЗНАНИЙ ===
 {context}
@@ -150,7 +185,7 @@ class RAGAssistant:
                 messages=[
                     {
                         "role": "system",
-                        "content": "Ты - полезный AI-ассистент, который отвечает на вопросы на основе предоставленного контекста."
+                        "content": SYSTEM_PROMPT,
                     },
                     {
                         "role": "user",
@@ -158,11 +193,14 @@ class RAGAssistant:
                     }
                 ],
                 temperature=self.temperature,
-                max_tokens=500
+                max_tokens=self.max_tokens
             )
             
             # Извлекаем текст ответа
             answer = response.choices[0].message.content.strip()
+            
+            if search_results and "📎 Источники" not in answer and "Источники:" not in answer:
+                answer += self._build_sources_footer(search_results)
             
             return answer, search_results
             

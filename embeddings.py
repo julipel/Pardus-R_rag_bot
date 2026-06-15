@@ -143,8 +143,13 @@ class EmbeddingStore:
         
         print(f"\nДобавление {len(documents)} документов в ChromaDB...")
         
-        for doc_name, doc_text in documents:
-            # Разбиваем документ на чанки
+        for item in documents:
+            if len(item) == 3:
+                doc_name, doc_text, source_path = item
+            else:
+                doc_name, doc_text = item
+                source_path = doc_name
+
             chunks = self._create_chunks(doc_text)
             
             print(f"  • {doc_name}: {len(chunks)} чанков")
@@ -153,7 +158,8 @@ class EmbeddingStore:
                 all_chunks.append(chunk)
                 all_metadatas.append({
                     "source": doc_name,
-                    "chunk_length": len(chunk)
+                    "source_path": source_path,
+                    "chunk_length": len(chunk),
                 })
                 all_ids.append(f"chunk_{chunk_id}")
                 chunk_id += 1
@@ -195,7 +201,7 @@ class EmbeddingStore:
             top_k: Количество результатов для возврата
             
         Returns:
-            Список кортежей (текст_чанка, источник, расстояние)
+            Список кортежей (текст_чанка, путь_к_документу, расстояние)
             Расстояние: чем меньше, тем более релевантен результат
         """
         # Проверяем, есть ли документы в коллекции
@@ -219,7 +225,8 @@ class EmbeddingStore:
         if results['documents'] and len(results['documents'][0]) > 0:
             for i in range(len(results['documents'][0])):
                 chunk_text = results['documents'][0][i]
-                source = results['metadatas'][0][i]['source']
+                metadata = results['metadatas'][0][i]
+                source = metadata.get("source_path") or metadata["source"]
                 distance = results['distances'][0][i]
                 
                 formatted_results.append((chunk_text, source, distance))
@@ -241,9 +248,9 @@ class EmbeddingStore:
 
 def load_documents_from_folder(folder_path: str = "docs") -> List[Tuple[str, str]]:
     """
-    Загружает документы из папки с txt файлами.
+    Загружает документы из папки (.md и .txt).
     
-    Читает все .txt файлы из указанной папки и возвращает их содержимое
+    Читает все .md и .txt файлы из указанной папки и возвращает их содержимое
     в формате списка кортежей (имя_файла, содержимое).
     
     Args:
@@ -263,132 +270,80 @@ def load_documents_from_folder(folder_path: str = "docs") -> List[Tuple[str, str
         print(f"⚠ Предупреждение: {folder_path} не является папкой")
         return documents
     
-    # Ищем все .txt файлы в папке
-    txt_files = list(docs_path.glob("*.txt"))
+    doc_files = sorted(
+        list(docs_path.glob("*.md")) + list(docs_path.glob("*.txt")),
+        key=lambda p: p.name.lower(),
+    )
     
-    if not txt_files:
-        print(f"⚠ Предупреждение: в папке {folder_path} не найдено .txt файлов")
+    if not doc_files:
+        print(f"⚠ Предупреждение: в папке {folder_path} не найдено .md или .txt файлов")
         return documents
     
-    print(f"📂 Найдено {len(txt_files)} файлов в папке {folder_path}")
+    print(f"📂 Найдено {len(doc_files)} файлов в папке {folder_path}")
     
-    for txt_file in txt_files:
+    for doc_file in doc_files:
         try:
-            # Читаем содержимое файла
-            with open(txt_file, 'r', encoding='utf-8') as f:
+            with open(doc_file, 'r', encoding='utf-8') as f:
                 content = f.read().strip()
             
             if content:
-                # Используем имя файла (без расширения) как название документа
-                doc_name = txt_file.stem
-                documents.append((doc_name, content))
-                print(f"  ✓ Загружен: {txt_file.name}")
+                doc_name = doc_file.stem
+                source_path = f"{folder_path}/{doc_file.name}".replace("\\", "/")
+                documents.append((doc_name, content, source_path))
+                print(f"  ✓ Загружен: {doc_file.name}")
             else:
-                print(f"  ⚠ Пропущен (пустой): {txt_file.name}")
+                print(f"  ⚠ Пропущен (пустой): {doc_file.name}")
                 
         except Exception as e:
-            print(f"  ❌ Ошибка при чтении {txt_file.name}: {str(e)}")
+            print(f"  ❌ Ошибка при чтении {doc_file.name}: {str(e)}")
     
     return documents
 
 
-def get_sample_documents() -> List[Tuple[str, str]]:
+def reindex_documents(
+    embedding_store: "EmbeddingStore",
+    docs_folder: str = "docs",
+    clear_cache=None,
+) -> int:
     """
-    Возвращает примеры документов для демонстрации RAG.
+    Переиндексирует базу знаний: очищает ChromaDB и загружает документы заново.
     
-    Сначала пытается загрузить документы из папки docs/,
-    если папка пуста или не существует, возвращает встроенные примеры.
+    Args:
+        embedding_store: Экземпляр EmbeddingStore
+        docs_folder: Папка с документами
+        clear_cache: Опциональный ResponseCache — будет очищен после переиндексации
+        
+    Returns:
+        Количество загруженных документов
+        
+    Raises:
+        ValueError: если документы не найдены
+    """
+    documents = load_documents_from_folder(docs_folder)
+    if not documents:
+        raise ValueError(
+            f"Нет документов для индексации в папке '{docs_folder}'. "
+            "Добавьте .md или .txt файлы."
+        )
+    
+    print("\n🔄 Переиндексация базы знаний...")
+    embedding_store.clear_collection()
+    embedding_store.add_documents(documents)
+    
+    if clear_cache is not None:
+        clear_cache.clear()
+        print("✓ Кеш ответов очищен")
+    
+    chunk_count = embedding_store.collection.count()
+    print(f"✓ Переиндексация завершена: {len(documents)} документов, {chunk_count} чанков")
+    return len(documents)
+
+
+def get_sample_documents(docs_folder: str = "docs") -> List[Tuple[str, str]]:
+    """
+    Загружает документы из папки docs/ для индексации в ChromaDB.
     
     Returns:
         Список кортежей (название, текст)
     """
-    # Пытаемся загрузить документы из папки
-    documents = load_documents_from_folder("docs")
-    
-    # Если документы не найдены, используем встроенные примеры
-    if not documents:
-        print("📝 Используются встроенные примеры документов")
-        documents = [
-            (
-                "Python Основы",
-                """
-                Python - это высокоуровневый язык программирования общего назначения. 
-                Он был создан Гвидо ван Россумом и впервые выпущен в 1991 году.
-                
-                Python известен своей простотой и читаемостью кода. Философия языка 
-                подчеркивает важность читаемости кода и позволяет программистам 
-                выражать концепции в меньшем количестве строк кода, чем это было бы 
-                возможно в других языках.
-                
-                Основные возможности Python включают:
-                - Динамическую типизацию
-                - Автоматическое управление памятью
-                - Обширную стандартную библиотеку
-                - Поддержку множественных парадигм программирования
-                
-                Python широко используется в веб-разработке, анализе данных, 
-                машинном обучении, автоматизации и научных вычислениях.
-                """
-            ),
-            (
-                "Машинное обучение и AI",
-                """
-                Машинное обучение (Machine Learning) - это подраздел искусственного 
-                интеллекта, который изучает алгоритмы и статистические модели, 
-                позволяющие компьютерам выполнять задачи без явного программирования.
-                
-                Основные типы машинного обучения:
-                
-                1. Обучение с учителем (Supervised Learning)
-                В этом подходе модель обучается на размеченных данных, где каждый 
-                пример имеет известный правильный ответ. Примеры: классификация 
-                изображений, предсказание цен на недвижимость.
-                
-                2. Обучение без учителя (Unsupervised Learning)
-                Модель ищет закономерности в неразмеченных данных. Примеры: 
-                кластеризация клиентов, обнаружение аномалий.
-                
-                3. Обучение с подкреплением (Reinforcement Learning)
-                Агент обучается принимать решения, взаимодействуя со средой и 
-                получая награды или штрафы.
-                
-                RAG (Retrieval-Augmented Generation) - это техника, которая улучшает 
-                качество ответов языковых моделей, дополняя их внешними знаниями из 
-                базы данных. Это позволяет модели давать более точные и актуальные 
-                ответы, основанные на конкретных документах.
-                """
-            ),
-            (
-                "Векторные базы данных",
-                """
-                Векторные базы данных - это специализированные системы хранения данных, 
-                оптимизированные для хранения и поиска векторных эмбеддингов.
-                
-                Что такое эмбеддинги?
-                Эмбеддинги - это векторные представления данных (текста, изображений, 
-                аудио) в многомерном пространстве. Семантически похожие объекты 
-                располагаются близко друг к другу в этом пространстве.
-                
-                ChromaDB - это открытая векторная база данных, разработанная специально 
-                для работы с эмбеддингами в приложениях с искусственным интеллектом.
-                
-                Преимущества ChromaDB:
-                - Простота использования и встраивания в приложения
-                - Поддержка персистентного хранения данных
-                - Встроенная поддержка различных моделей эмбеддингов
-                - Быстрый семантический поиск
-                - Возможность работы как локально, так и в клиент-серверном режиме
-                
-                Векторные базы данных критически важны для RAG-систем, так как они 
-                позволяют быстро находить релевантные документы на основе семантического 
-                сходства запроса с содержимым базы данных.
-                
-                OpenAI предоставляет мощные модели для создания эмбеддингов, такие как 
-                text-embedding-3-small и text-embedding-3-large. Эти модели создают 
-                высококачественные векторные представления текста, которые отлично 
-                работают для семантического поиска в различных языках, включая русский.
-                """
-            )
-        ]
-    
-    return documents
+    return load_documents_from_folder(docs_folder)

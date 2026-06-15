@@ -8,7 +8,7 @@ from typing import Optional, Set
 
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(override=True)
 
 
 def _parse_admin_ids(raw: Optional[str]) -> Set[str]:

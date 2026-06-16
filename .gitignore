@@ -39,3 +39,4 @@ logs_*.csv
 .DS_Store
 Thumbs.db
 
+portfolio-site/node_modules/

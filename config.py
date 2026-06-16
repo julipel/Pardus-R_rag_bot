@@ -47,7 +47,7 @@ class Settings:
             logs_db_path=os.getenv("LOGS_DB_PATH", "logs.db"),
             docs_folder=os.getenv("DOCS_FOLDER", "docs"),
             top_k=int(os.getenv("TOP_K", "3")),
-            max_tokens=int(os.getenv("MAX_TOKENS", "500")),
+            max_tokens=int(os.getenv("MAX_TOKENS", "1000")),
             telegram_admin_ids=_parse_admin_ids(os.getenv("TELEGRAM_ADMIN_IDS")),
         )
 

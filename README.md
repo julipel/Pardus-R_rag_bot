@@ -1,55 +1,50 @@
-# RAG-ассистент с ChromaDB, кешем и Telegram-ботом
+# Пардус-Р RAG-бот
 
-Проект реализует RAG-ассистента на русском языке для консультаций по портативному рентген-аппарату `Пардус-Р`.
+Telegram-бот-консультант по портативному рентген-аппарату **«Пардус-Р»**.
 
-Ассистент:
-- загружает `.md` и `.txt` документы из папки `docs/`,
-- индексирует их в `ChromaDB` через эмбеддинги OpenAI,
-- отвечает на вопросы через LLM с учетом найденного контекста,
-- кеширует ответы в `cache.json`,
-- ведет логи запросов в `logs.db`,
-- работает как Telegram-бот.
+Отвечает на вопросы врачей, закупщиков и операторов на основе официальной документации: технических характеристик, руководства по эксплуатации, паспорта и сценариев применения.
 
-## Возможности
+## Как это работает
 
-- RAG-пайплайн: поиск релевантных фрагментов + генерация ответа.
-- Доменный промпт под аппарат «Пардус-Р» (безопасность, характеристики, эксплуатация).
-- Персистентное векторное хранилище в `chroma_db/`.
-- Кеш повторяющихся запросов (ускоряет ответы и снижает стоимость API).
-- Переиндексация базы знаний (скрипт `reindex.py`, команда `/reindex`).
-- Логирование всех взаимодействий в SQLite.
-- Экспорт логов в CSV.
-- Telegram-интерфейс с ограничением админ-команд.
+1. Документы из `docs/` разбиваются на фрагменты и индексируются в ChromaDB через OpenAI-эмбеддинги.
+2. При поступлении вопроса система находит наиболее релевантные фрагменты.
+3. LLM генерирует ответ на основе найденного контекста и добавляет ссылки на источники.
+4. Повторные одинаковые вопросы возвращаются из кеша без обращения к API.
 
 ## Стек
 
-- Python 3.11+
-- `openai`
-- `chromadb`
-- `python-dotenv`
-- `python-telegram-bot`
-- SQLite (встроен в Python)
+| Компонент | Технология |
+|---|---|
+| LLM и эмбеддинги | OpenAI API (`gpt-3.5-turbo`, `text-embedding-3-small`) |
+| Векторная база | ChromaDB (персистентная, локальная) |
+| Бот | python-telegram-bot |
+| Кеш | JSON-файл с FIFO-вытеснением (лимит 1000 записей) |
+| Логи | SQLite (`logs.db`) |
+| Конфигурация | python-dotenv |
 
 ## Структура проекта
 
-- `main.py` — точка входа: инициализация системы и запуск Telegram-бота.
-- `config.py` — загрузка настроек из `.env`.
-- `embeddings.py` — загрузка документов, чанкование, эмбеддинги, поиск в ChromaDB.
-- `rag.py` — RAG-логика и генерация ответа через OpenAI.
-- `cache.py` — файловый кеш ответов (`cache.json`).
-- `db_logger.py` — логирование и статистика (`logs.db`, таблица `logs`).
-- `telegram_bot.py` — команды и обработка сообщений Telegram-бота.
-- `reindex.py` — скрипт переиндексации документов.
-- `docs/` — база знаний в `.md` / `.txt`.
-- `env.example` — пример переменных окружения.
+```
+├── main.py          # Точка входа: инициализация и запуск бота
+├── config.py        # Настройки из .env
+├── embeddings.py    # Загрузка документов, чанкование, ChromaDB
+├── rag.py           # RAG-логика: поиск + генерация ответа
+├── cache.py         # Файловый кеш ответов
+├── db_logger.py     # Логирование в SQLite
+├── telegram_bot.py  # Команды и обработка сообщений
+├── reindex.py       # Скрипт переиндексации
+├── docs/            # База знаний (.md / .txt)
+└── env.example      # Пример переменных окружения
+```
 
-## Подготовка окружения (Windows PowerShell)
+## Быстрый старт
+
+### 1. Виртуальное окружение и зависимости (Windows PowerShell)
 
 ```powershell
-cd "C:\path\to\your\project"
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
+pip install -r requirements.txt
 ```
 
 Если PowerShell блокирует активацию:
@@ -59,108 +54,119 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 .\.venv\Scripts\Activate.ps1
 ```
 
-## Настройка `.env`
+### 2. Настройка `.env`
 
-1. Скопируйте `env.example` в `.env`.
-2. Заполните обязательные переменные:
+```powershell
+Copy-Item env.example .env
+```
+
+Откройте `.env` и заполните три обязательных значения:
 
 ```env
-OPENAI_API_KEY=your_openai_api_key_here
-TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
+OPENAI_API_KEY=sk-...
+TELEGRAM_BOT_TOKEN=...
 TELEGRAM_ADMIN_IDS=123456789
 ```
 
-`TELEGRAM_BOT_TOKEN` обязателен для запуска бота.
+`TELEGRAM_ADMIN_IDS` — Telegram user ID через запятую (несколько: `111,222`).  
+Узнать свой ID: напишите боту [@userinfobot](https://t.me/userinfobot).
 
-`TELEGRAM_ADMIN_IDS` — Telegram user ID администраторов через запятую. Без этой переменной команды `/stats`, `/logs` и `/reindex` недоступны никому.
-
-### Все настройки из `.env`
-
-| Переменная | По умолчанию | Описание |
-|---|---|---|
-| `OPENAI_API_KEY` | — | Ключ OpenAI (обязательно) |
-| `TELEGRAM_BOT_TOKEN` | — | Токен Telegram-бота |
-| `TELEGRAM_ADMIN_IDS` | — | ID админов через запятую |
-| `MODEL_NAME` | `gpt-3.5-turbo` | Модель LLM |
-| `TEMPERATURE` | `0.7` | Креативность LLM |
-| `MAX_TOKENS` | `500` | Макс. длина ответа |
-| `TOP_K` | `3` | Число фрагментов для RAG |
-| `EMBEDDING_MODEL` | `text-embedding-3-small` | Модель эмбеддингов |
-| `CHROMA_PERSIST_DIR` | `./chroma_db` | Папка ChromaDB |
-| `COLLECTION_NAME` | `rag_documents` | Имя коллекции |
-| `DOCS_FOLDER` | `docs` | Папка с документами |
-| `CACHE_FILE` | `cache.json` | Файл кеша |
-| `LOGS_DB_PATH` | `logs.db` | Файл логов |
-
-## Запуск
-
-### Telegram-бот
+### 3. Запуск
 
 ```powershell
 python main.py
 ```
 
-### Переиндексация документов
+При первом запуске система автоматически проиндексирует документы из `docs/`.
 
-После обновления файлов в `docs/`:
+## Все настройки `.env`
+
+| Переменная | По умолчанию | Описание |
+|---|---|---|
+| `OPENAI_API_KEY` | — | Ключ OpenAI (обязательно) |
+| `TELEGRAM_BOT_TOKEN` | — | Токен Telegram-бота (обязательно) |
+| `TELEGRAM_ADMIN_IDS` | — | ID администраторов через запятую |
+| `MODEL_NAME` | `gpt-3.5-turbo` | Модель LLM |
+| `TEMPERATURE` | `0.7` | Креативность LLM (0.0–1.0) |
+| `MAX_TOKENS` | `1000` | Макс. длина ответа (в токенах) |
+| `TOP_K` | `3` | Число фрагментов для RAG-поиска |
+| `EMBEDDING_MODEL` | `text-embedding-3-small` | Модель эмбеддингов |
+| `CHROMA_PERSIST_DIR` | `./chroma_db` | Папка векторной базы |
+| `COLLECTION_NAME` | `rag_documents` | Имя коллекции ChromaDB |
+| `DOCS_FOLDER` | `docs` | Папка с документами базы знаний |
+| `CACHE_FILE` | `cache.json` | Файл кеша ответов |
+| `LOGS_DB_PATH` | `logs.db` | Файл логов SQLite |
+
+## Команды Telegram-бота
+
+**Для всех пользователей:**
+
+| Команда | Действие |
+|---|---|
+| `/start` | Приветственное сообщение |
+| `/help` | Справка и примеры вопросов |
+
+**Только для администраторов** (требуют `TELEGRAM_ADMIN_IDS`):
+
+| Команда | Действие |
+|---|---|
+| `/stats` | Статистика: число чанков, запросов, хиты кеша |
+| `/logs` | Выгрузка всех логов в CSV-файл |
+| `/reindex` | Переиндексация базы знаний из `docs/` |
+
+## Обновление базы знаний
+
+После изменения или добавления файлов в `docs/`:
 
 ```powershell
 python reindex.py
 ```
 
-В Telegram — команда `/reindex` (только для администраторов).
+Или командой `/reindex` в Telegram (только для администраторов).
 
 Переиндексация очищает ChromaDB, загружает документы заново и сбрасывает кеш ответов.
 
-## Команды Telegram-бота
+## Просмотр логов
 
-Пользовательские команды:
-- `/start` — приветственное сообщение,
-- `/help` — справка и примеры вопросов.
-
-Админ-команды (требуют `TELEGRAM_ADMIN_IDS`):
-- `/stats` — статистика системы,
-- `/logs` — выгрузка всех логов в CSV,
-- `/reindex` — переиндексация базы знаний.
-
-## Логи и CSV
-
-### Где хранятся логи
-
-- Файл БД: `logs.db`
-- Таблица: `logs`
-
-### Экспорт `logs.db` в CSV (без `sqlite3` CLI)
+Открыть базу напрямую:
 
 ```powershell
-python -c "import sqlite3,csv; conn=sqlite3.connect('logs.db'); cur=conn.cursor(); cur.execute('SELECT * FROM logs'); rows=cur.fetchall(); headers=[d[0] for d in cur.description]; f=open('logs_export.csv','w',newline='',encoding='utf-8-sig'); w=csv.writer(f); w.writerow(headers); w.writerows(rows); f.close(); conn.close(); print('logs_export.csv created')"
-```
-
-Открыть в Excel:
-
-```powershell
+python -c "
+import sqlite3, csv
+conn = sqlite3.connect('logs.db')
+cur = conn.cursor()
+cur.execute('SELECT * FROM logs')
+rows = cur.fetchall()
+headers = [d[0] for d in cur.description]
+with open('logs_export.csv', 'w', newline='', encoding='utf-8-sig') as f:
+    w = csv.writer(f)
+    w.writerow(headers)
+    w.writerows(rows)
+conn.close()
+print('Готово: logs_export.csv')
+"
 start excel "logs_export.csv"
 ```
 
 ## Частые проблемы
 
-- `ModuleNotFoundError: No module named 'dotenv'`  
-  Установите зависимости:
-  ```powershell
-  .\.venv\Scripts\python.exe -m pip install -r requirements.txt
-  ```
+**`ModuleNotFoundError: No module named 'dotenv'`**  
+Зависимости не установлены в активном окружении:
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+```
 
-- Бот не отвечает по документам «Пардус-Р»  
-  Проверьте, что в `docs/` есть `.md` файлы, и выполните `python reindex.py`.
+**Бот не отвечает по теме «Пардус-Р»**  
+Проверьте, что в `docs/` есть `.md`-файлы, и запустите `python reindex.py`.
 
-- Админ-команды не работают  
-  Задайте `TELEGRAM_ADMIN_IDS` в `.env` (узнать ID: @userinfobot).
+**Команды `/stats`, `/logs`, `/reindex` не работают**  
+Задайте `TELEGRAM_ADMIN_IDS` в `.env`.
 
-- Бот не запускается  
-  Проверьте, что в `.env` заданы `OPENAI_API_KEY` и `TELEGRAM_BOT_TOKEN`.
+**Бот запускается, но сразу падает**  
+Проверьте, что в `.env` заданы `OPENAI_API_KEY` и `TELEGRAM_BOT_TOKEN`.
 
 ## Безопасность
 
-- Не коммитьте `.env` и реальные ключи API.
-- Задайте `TELEGRAM_ADMIN_IDS` — без него админ-команды отключены.
-- Логи могут содержать пользовательские сообщения — учитывайте это при передаче CSV.
+- Файл `.env` добавлен в `.gitignore` — не коммитьте ключи.
+- Без `TELEGRAM_ADMIN_IDS` администраторские команды отключены для всех.
+- CSV-экспорт логов содержит тексты сообщений пользователей — передавайте осторожно.

@@ -7,6 +7,7 @@
 
 import hashlib
 import json
+from collections import OrderedDict
 from typing import Optional
 from pathlib import Path
 
@@ -14,21 +15,24 @@ from pathlib import Path
 class ResponseCache:
     """
     Простой кеш для хранения ответов LLM.
-    
-    Использует словарь Python для хранения пар (хеш_запроса, ответ).
+
+    Использует OrderedDict для хранения пар (хеш_запроса, ответ).
+    При достижении max_size старейшая запись вытесняется (FIFO).
     При необходимости кеш можно сохранить в файл и загрузить обратно.
     """
-    
-    def __init__(self, cache_file: str = "cache.json"):
+
+    def __init__(self, cache_file: str = "cache.json", max_size: int = 1000):
         """
         Инициализация кеша.
-        
+
         Args:
             cache_file: Путь к файлу для сохранения кеша на диск
+            max_size: Максимальное количество записей (старые вытесняются)
         """
         self.cache_file = Path(cache_file)
-        self.cache = {}
-        
+        self.max_size = max_size
+        self.cache: OrderedDict = OrderedDict()
+
         # Загружаем существующий кеш, если файл есть
         self._load_cache()
     
@@ -75,17 +79,23 @@ class ResponseCache:
     def set(self, query: str, response: str, verbose: bool = True) -> None:
         """
         Сохраняет ответ в кеш.
-        
+
         Args:
             query: Пользовательский запрос
             response: Ответ от LLM
         """
         cache_key = self._get_cache_key(query)
+
+        if cache_key in self.cache:
+            self.cache.move_to_end(cache_key)
         self.cache[cache_key] = response
-        
+
+        if len(self.cache) > self.max_size:
+            self.cache.popitem(last=False)
+
         # Автоматически сохраняем кеш на диск после каждого добавления
         self._save_cache()
-        
+
         if verbose:
             print("✓ Ответ сохранен в кеше")
     
@@ -108,17 +118,21 @@ class ResponseCache:
         if self.cache_file.exists():
             try:
                 with open(self.cache_file, 'r', encoding='utf-8') as f:
-                    self.cache = json.load(f)
+                    data = json.load(f)
+                self.cache = OrderedDict(data)
+                if len(self.cache) > self.max_size:
+                    while len(self.cache) > self.max_size:
+                        self.cache.popitem(last=False)
                 print(f"✓ Загружен кеш с {len(self.cache)} записями")
             except Exception as e:
                 print(f"⚠ Предупреждение: не удалось загрузить кеш: {e}")
-                self.cache = {}
+                self.cache = OrderedDict()
     
     def clear(self) -> None:
         """
         Очищает весь кеш.
         """
-        self.cache = {}
+        self.cache = OrderedDict()
         if self.cache_file.exists():
             self.cache_file.unlink()
         print("✓ Кеш очищен")

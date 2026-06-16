@@ -161,24 +161,25 @@ class TelegramRAGBot:
         
         try:
             csv_content = self.logger.export_to_csv()
-            
+
             if not csv_content:
                 await update.message.reply_text("📝 Логов не найдено.")
                 return
-            
+
             filename = f"logs_all_{int(time.time())}.csv"
             with open(filename, 'w', encoding='utf-8') as f:
                 f.write(csv_content)
-            
-            with open(filename, 'rb') as f:
-                await update.message.reply_document(
-                    document=f,
-                    filename=filename,
-                    caption="📊 Экспорт всех логов системы",
-                )
-            
-            os.remove(filename)
-            
+
+            try:
+                with open(filename, 'rb') as f:
+                    await update.message.reply_document(
+                        document=f,
+                        filename=filename,
+                        caption="📊 Экспорт всех логов системы",
+                    )
+            finally:
+                os.remove(filename)
+
         except Exception as e:
             await update.message.reply_text(f"❌ Ошибка при экспорте логов: {str(e)}")
     

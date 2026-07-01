@@ -34,7 +34,7 @@
 
   /* ── CSS ──────────────────────────────────────────────────────────────── */
   var css = '\
-#prw-root * { box-sizing: border-box; margin: 0; padding: 0; }\
+#prw-root * { box-sizing: border-box; margin: 0; }\
 \
 #prw-btn {\
   position: fixed; bottom: 24px; right: 24px;\

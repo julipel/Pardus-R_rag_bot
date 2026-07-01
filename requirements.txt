@@ -14,3 +14,7 @@ python-telegram-bot>=20.0
 
 # Актуальный SQLite для ChromaDB на старых Linux-серверах
 pysqlite3-binary>=0.5.0
+
+# Web-виджет: FastAPI + ASGI-сервер
+fastapi>=0.110.0
+uvicorn[standard]>=0.29.0

@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Пардус-Р — AI-консультант (демо)</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f7fa;
+      color: #1a1a1a;
+      line-height: 1.6;
+    }
+
+    /* ── Шапка ── */
+    header {
+      background: linear-gradient(135deg, #1a3a6b 0%, #0d2147 100%);
+      color: #fff;
+      padding: 0 40px;
+      position: sticky; top: 0; z-index: 100;
+      box-shadow: 0 2px 12px rgba(0,0,0,.2);
+    }
+    .nav {
+      max-width: 1100px; margin: 0 auto;
+      display: flex; align-items: center; justify-content: space-between;
+      height: 64px;
+    }
+    .nav-logo { font-size: 20px; font-weight: 700; letter-spacing: .5px; }
+    .nav-logo span { color: #64b5f6; }
+    .nav-links { display: flex; gap: 28px; }
+    .nav-links a {
+      color: rgba(255,255,255,.8); text-decoration: none; font-size: 14px;
+      transition: color .2s;
+    }
+    .nav-links a:hover { color: #fff; }
+
+    /* ── Герой ── */
+    .hero {
+      background: linear-gradient(135deg, #1a3a6b 0%, #1565c0 60%, #0d47a1 100%);
+      color: #fff; text-align: center;
+      padding: 80px 40px 100px;
+    }
+    .hero-badge {
+      display: inline-block;
+      background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.3);
+      border-radius: 20px; padding: 4px 16px; font-size: 13px; margin-bottom: 24px;
+    }
+    .hero h1 { font-size: clamp(28px, 5vw, 48px); font-weight: 800; margin-bottom: 16px; }
+    .hero h1 span { color: #90caf9; }
+    .hero p { font-size: 18px; opacity: .85; max-width: 600px; margin: 0 auto 36px; }
+    .hero-actions { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+    .btn-primary {
+      background: #fff; color: #1565c0; font-weight: 600;
+      padding: 14px 32px; border-radius: 30px; text-decoration: none;
+      font-size: 15px; transition: transform .2s, box-shadow .2s;
+      box-shadow: 0 4px 16px rgba(0,0,0,.2);
+      border: none; cursor: pointer;
+    }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,.3); }
+    .btn-outline {
+      border: 2px solid rgba(255,255,255,.6); color: #fff;
+      padding: 13px 32px; border-radius: 30px; text-decoration: none;
+      font-size: 15px; transition: border-color .2s, background .2s;
+    }
+    .btn-outline:hover { border-color: #fff; background: rgba(255,255,255,.1); }
+
+    /* ── Характеристики ── */
+    .section { padding: 72px 40px; max-width: 1100px; margin: 0 auto; }
+    .section-label {
+      text-align: center; font-size: 13px; font-weight: 600;
+      color: #1565c0; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px;
+    }
+    .section-title { text-align: center; font-size: 32px; font-weight: 700; margin-bottom: 8px; }
+    .section-sub { text-align: center; color: #666; margin-bottom: 48px; font-size: 16px; }
+
+    .specs-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 24px; }
+    .spec-card {
+      background: #fff; border-radius: 16px; padding: 28px 24px;
+      box-shadow: 0 2px 12px rgba(0,0,0,.07);
+      text-align: center; transition: transform .2s, box-shadow .2s;
+    }
+    .spec-card:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(0,0,0,.12); }
+    .spec-icon { font-size: 36px; margin-bottom: 12px; }
+    .spec-value { font-size: 28px; font-weight: 800; color: #1565c0; }
+    .spec-unit  { font-size: 14px; color: #888; font-weight: 400; }
+    .spec-label { font-size: 14px; color: #555; margin-top: 6px; }
+
+    /* ── Применение ── */
+    .use-cases-bg { background: #fff; }
+    .cases-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; }
+    .case-card {
+      background: #f0f5ff; border-radius: 14px; padding: 24px;
+      border-left: 4px solid #1565c0; transition: background .2s;
+    }
+    .case-card:hover { background: #e3eeff; }
+    .case-icon { font-size: 28px; margin-bottom: 10px; }
+    .case-title { font-weight: 700; font-size: 15px; margin-bottom: 6px; }
+    .case-desc { font-size: 13px; color: #555; }
+
+    /* ── Безопасность ── */
+    .safety-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: center; }
+    .safety-text h2 { font-size: 28px; font-weight: 700; margin-bottom: 16px; }
+    .safety-text p  { color: #555; margin-bottom: 12px; }
+    .safety-list    { list-style: none; }
+    .safety-list li { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 10px; font-size: 14px; color: #444; }
+    .safety-list li::before { content: '✓'; color: #1565c0; font-weight: 700; flex-shrink: 0; }
+    .safety-img {
+      background: linear-gradient(135deg, #e3f2fd, #bbdefb);
+      border-radius: 20px; padding: 48px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 80px; text-align: center;
+    }
+
+    /* ── FAQ ── */
+    .faq-list { max-width: 720px; margin: 0 auto; }
+    details {
+      background: #fff; border-radius: 12px; margin-bottom: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.06); overflow: hidden;
+    }
+    summary {
+      padding: 18px 24px; font-weight: 600; cursor: pointer;
+      list-style: none; display: flex; justify-content: space-between; align-items: center;
+      font-size: 15px;
+    }
+    summary::-webkit-details-marker { display: none; }
+    summary::after { content: '+'; font-size: 20px; color: #1565c0; transition: transform .2s; }
+    details[open] summary::after { content: '−'; }
+    .faq-body { padding: 0 24px 18px; color: #555; font-size: 14px; line-height: 1.6; }
+
+    /* ── CTA ── */
+    .cta {
+      background: linear-gradient(135deg, #1565c0, #0d47a1);
+      color: #fff; text-align: center; padding: 72px 40px;
+    }
+    .cta h2 { font-size: 32px; font-weight: 700; margin-bottom: 12px; }
+    .cta p  { opacity: .85; margin-bottom: 32px; font-size: 16px; }
+
+    /* ── Подвал ── */
+    footer {
+      background: #0d2147; color: rgba(255,255,255,.6);
+      text-align: center; padding: 24px; font-size: 13px;
+    }
+
+    @media (max-width: 768px) {
+      .nav-links { display: none; }
+      .safety-grid { grid-template-columns: 1fr; }
+      .section { padding: 48px 20px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Шапка -->
+  <header>
+    <nav class="nav">
+      <div class="nav-logo">Пардус<span>-Р</span></div>
+      <div class="nav-links">
+        <a href="#specs">Характеристики</a>
+        <a href="#cases">Применение</a>
+        <a href="#safety">Безопасность</a>
+        <a href="#faq">FAQ</a>
+      </div>
+    </nav>
+  </header>
+
+  <!-- Герой -->
+  <section class="hero">
+    <div class="hero-badge">Портативный рентген нового поколения</div>
+    <h1>Аппарат <span>«Пардус-Р»</span></h1>
+    <p>Компактная цифровая рентгенодиагностика для работы в любых условиях — от ФАПа до военной медицины</p>
+    <div class="hero-actions">
+      <button class="btn-primary" onclick="window.pardusWidget && window.pardusWidget.open()">
+        💬 Спросить консультанта
+      </button>
+      <a href="#specs" class="btn-outline">Характеристики</a>
+    </div>
+  </section>
+
+  <!-- Характеристики -->
+  <section id="specs">
+    <div class="section">
+      <div class="section-label">Технические параметры</div>
+      <h2 class="section-title">Ключевые характеристики</h2>
+      <p class="section-sub">Данные из официальной документации и паспорта изделия</p>
+      <div class="specs-grid">
+        <div class="spec-card">
+          <div class="spec-icon">⚡</div>
+          <div class="spec-value">40–80 <span class="spec-unit">кВ</span></div>
+          <div class="spec-label">Напряжение на трубке</div>
+        </div>
+        <div class="spec-card">
+          <div class="spec-icon">🔋</div>
+          <div class="spec-value">3,2 <span class="spec-unit">кг</span></div>
+          <div class="spec-label">Масса аппарата</div>
+        </div>
+        <div class="spec-card">
+          <div class="spec-icon">📡</div>
+          <div class="spec-value">Wi-Fi</div>
+          <div class="spec-label">Передача изображений</div>
+        </div>
+        <div class="spec-card">
+          <div class="spec-icon">🛡️</div>
+          <div class="spec-unit" style="font-size:14px; margin-top:8px">Регистрационное</div>
+          <div class="spec-label">удостоверение Росздравнадзора</div>
+        </div>
+        <div class="spec-card">
+          <div class="spec-icon">🔌</div>
+          <div class="spec-value">220 <span class="spec-unit">В</span></div>
+          <div class="spec-label">Питание / аккумулятор</div>
+        </div>
+        <div class="spec-card">
+          <div class="spec-icon">📷</div>
+          <div class="spec-value">DICOM</div>
+          <div class="spec-label">Формат изображений</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Применение -->
+  <section id="cases" class="use-cases-bg">
+    <div class="section">
+      <div class="section-label">Сценарии применения</div>
+      <h2 class="section-title">Где используется</h2>
+      <p class="section-sub">Аппарат разработан для работы в условиях, когда стационарный рентген недоступен</p>
+      <div class="cases-grid">
+        <div class="case-card">
+          <div class="case-icon">🏥</div>
+          <div class="case-title">Сельские ФАПы</div>
+          <div class="case-desc">Рентгенодиагностика в отдалённых населённых пунктах без стационарного оборудования</div>
+        </div>
+        <div class="case-card">
+          <div class="case-icon">🚑</div>
+          <div class="case-title">Скорая помощь</div>
+          <div class="case-desc">Экстренная диагностика переломов и травм непосредственно на месте происшествия</div>
+        </div>
+        <div class="case-card">
+          <div class="case-icon">🏔️</div>
+          <div class="case-title">Военная медицина</div>
+          <div class="case-desc">Работа в полевых условиях без подключения к сети и стационарной инфраструктуры</div>
+        </div>
+        <div class="case-card">
+          <div class="case-icon">🚗</div>
+          <div class="case-title">Выездная диагностика</div>
+          <div class="case-desc">Мобильные медицинские бригады для обследования пациентов на дому</div>
+        </div>
+        <div class="case-card">
+          <div class="case-icon">🏋️</div>
+          <div class="case-title">Травматология</div>
+          <div class="case-desc">Приёмный покой и травмпункт — быстрая диагностика без очереди в рентген-кабинет</div>
+        </div>
+        <div class="case-card">
+          <div class="case-icon">👶</div>
+          <div class="case-title">Перинатальные центры</div>
+          <div class="case-desc">Рентгенография новорождённых в палате без транспортировки к стационарному аппарату</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Безопасность -->
+  <section id="safety">
+    <div class="section">
+      <div class="safety-grid">
+        <div class="safety-text">
+          <div class="section-label" style="text-align:left">Радиационная безопасность</div>
+          <h2>Безопасная эксплуатация</h2>
+          <p>Аппарат соответствует требованиям нормативных документов в области радиационной безопасности. Имеет регистрационное удостоверение Росздравнадзора.</p>
+          <ul class="safety-list">
+            <li>Встроенная защита от случайного облучения</li>
+            <li>Расчёт безопасного режима по НРБУ-99/2009</li>
+            <li>Контроль дозовой нагрузки</li>
+            <li>Рекомендации по СИЗ для персонала</li>
+            <li>Паспорт дозиметрических характеристик</li>
+          </ul>
+        </div>
+        <div class="safety-img">☢️</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section id="faq" class="use-cases-bg">
+    <div class="section">
+      <div class="section-label">Часто задаваемые вопросы</div>
+      <h2 class="section-title">FAQ</h2>
+      <p class="section-sub">Или задайте вопрос AI-консультанту — он знает всю документацию</p>
+      <div class="faq-list">
+        <details>
+          <summary>Что входит в стандартную комплектацию?</summary>
+          <div class="faq-body">
+            В базовую комплектацию входит рентгеновский аппарат, детектор, штатив, аккумуляторный блок, программное обеспечение и чехол для транспортировки. Подробный состав — у консультанта.
+          </div>
+        </details>
+        <details>
+          <summary>Нужна ли лицензия для работы с аппаратом?</summary>
+          <div class="faq-body">
+            Да, для использования рентгеновского оборудования требуется лицензия на медицинскую деятельность в части рентгенодиагностики. Сотрудники должны иметь соответствующий допуск.
+          </div>
+        </details>
+        <details>
+          <summary>Как рассчитать безопасный режим работы?</summary>
+          <div class="faq-body">
+            Безопасный режим рассчитывается на основе дозовых нагрузок по НРБУ-99/2009. Уточните у консультанта — он предоставит расчёт с учётом параметров аппарата.
+          </div>
+        </details>
+        <details>
+          <summary>Работает ли аппарат без интернета?</summary>
+          <div class="faq-body">
+            Аппарат работает автономно. Для передачи изображений используется локальная Wi-Fi-сеть или прямое подключение. Интернет не требуется для выполнения снимков.
+          </div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="cta">
+    <h2>Остались вопросы?</h2>
+    <p>Наш AI-консультант знает всю документацию — спросите прямо сейчас</p>
+    <button class="btn-primary" onclick="window.pardusWidget && window.pardusWidget.open()">
+      💬 Открыть консультанта
+    </button>
+  </section>
+
+  <!-- Подвал -->
+  <footer>
+    <p>© 2025 Пардус-Р · Демо-страница виджета AI-консультанта</p>
+  </footer>
+
+  <!-- Виджет: подключить своим URL -->
+  <script
+    src="/static/widget.js"
+    data-api-url=""
+    data-title="Консультант Пардус-Р"
+    data-color="#1a6fc4">
+  </script>
+  <script>
+    /* data-api-url пустой — виджет использует window.location.origin (текущий домен) */
+  </script>
+
+</body>
+</html>

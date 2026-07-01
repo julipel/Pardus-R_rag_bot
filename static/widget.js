@@ -99,7 +99,7 @@
 .prw-close:hover { opacity: 1; }\
 \
 .prw-messages {\
-  flex: 1; overflow-y: auto; padding: 16px 14px;\
+  flex: 1; overflow-y: auto; padding: 16px 20px;\
   display: flex; flex-direction: column; gap: 10px;\
   scroll-behavior: smooth;\
 }\
@@ -113,7 +113,7 @@
 .prw-msg.prw-bot  { align-self: flex-start; align-items: flex-start; }\
 \
 .prw-bubble {\
-  padding: 10px 14px; border-radius: 16px; word-break: break-word;\
+  padding: 10px 16px; border-radius: 16px; word-break: break-word;\
 }\
 .prw-msg.prw-user .prw-bubble {\
   background: ' + COLOR + '; color: #fff; border-bottom-right-radius: 4px;\
